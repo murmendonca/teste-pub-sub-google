@@ -11,15 +11,18 @@ public class Program
     {
         Console.WriteLine("Hello, World!");
 
-        const string ProjectId = "app-test-pub-sub";
-        const string TopicId = "app-test-pub-sub-topic";
-        const string SubscriptionId = "app-test-pub-sub-subscription";
+        const string ProjectId = "shared-architecture-dev";
+        //const string ProjectId = "shared-architecture-hml";
+        const string TopicId = "digital-nps-dev-patient-data-received";
+        //const string TopicId = "digital-nps-hml-patient-data-received";
+        const string SubscriptionId = "digital-nps-dev-patient-data-received-processing";
+        //const string SubscriptionId = "digital-nps-hml-patient-data-received-processing";
 
         // 1. Inicia o processo de publicação e criação de recursos
         await PubAsync($"Iniciando a publicação, data atual {DateTime.Now}");
 
         // 2. Inicia o processo de consumo (recebimento)
-        await ReceiveMessage();
+        //await ReceiveMessage();
 
 
         async Task PubAsync(string message)
@@ -36,8 +39,6 @@ public class Program
             // 1. Criar Tópico
             try
             {
-                // Usar o cliente de serviço criado acima
-                await publisherService.CreateTopicAsync(topicName);
                 Console.WriteLine($"Tópico {TopicId} criado.");
             }
             catch (RpcException ex) when (ex.Status.StatusCode == StatusCode.AlreadyExists)
@@ -55,39 +56,33 @@ public class Program
                 ChannelCredentials = ChannelCredentials.Insecure
             }.BuildAsync();
 
-            // 2. Criar Assinatura
-            try
-            {
-                // Usar o cliente de serviço criado acima
-                await subscriberService.CreateSubscriptionAsync(
-                    subName,
-                    topicName,
-                    pushConfig: null,
-                    ackDeadlineSeconds: 10);
-
-                Console.WriteLine($"Assinatura {SubscriptionId} criada para o tópico {TopicId}.");
-            }
-            catch (RpcException ex) when (ex.Status.StatusCode == StatusCode.AlreadyExists)
-            {
-                Console.WriteLine($"Assinatura {SubscriptionId} já existe.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erro ao criar Assinatura: {ex.Message}");
-            }
-
             // 3. Publicar Mensagem
             Console.WriteLine("\nPublicando mensagem...");
 
-            var publisher = await new PublisherClientBuilder
-            {
-                TopicName = topicName,
-                Endpoint = "localhost:8085",
-                ChannelCredentials = ChannelCredentials.Insecure
-            }.BuildAsync();
+            var publisher = await PublisherClient.CreateAsync(topicName);
+            var encounterCodeRandom = new Random(1000).Next();
 
             try
             {
+                message = JsonSerializer.Serialize(new
+                {
+                    ds_unidade = "Hospital Bahia",
+                    email = $"francisco.murilo.ext@americasmed.com.br",
+                    nm_paciente = "Murilo Mendonça",
+                    nr_celular = "96140978",
+                    nr_cpf = "437.856.780-61",
+                    cd_atendimento = "06",
+                    nm_prestador = "FERNANDO VELASCO FRIEDRICH",
+                    ds_especialidade = "CIRURGIA GERAL",
+                    tipo_porta = "Pronto Socorro",
+                    dt_atendimento = "2026-01-05 00:00:0000:00",
+                    dt_alta = "2026-01-04 00:00:0000:00",
+                    sn_primeiro_atendimento = "N",
+                    sn_onco = "N",
+                    quarentena = "FALSE"
+
+                });
+
                 var pubsubMessage = new PubsubMessage
                 {
                     Data = ByteString.CopyFromUtf8(message),
@@ -95,6 +90,7 @@ public class Program
                 };
 
                 string messageId = await publisher.PublishAsync(pubsubMessage);
+
                 Console.WriteLine($"Mensagem publicada com ID: {messageId}");
             }
             finally
